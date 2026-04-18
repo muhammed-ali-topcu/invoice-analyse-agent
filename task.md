@@ -23,3 +23,17 @@ must use api resource
 make validation
 add view page for upload
 
+
+
+# add endpoint to list uploaded invoices
+
+- [x] invoices: 
+- [x] invoice thumb
+- [x] name 
+- [x] size
+- [x] uploaded at
+- [x] status badge
+
+- [x] add search and filter by status
+- [x] table must be sortable by name, size, uploaded at
+- [x] with pageination

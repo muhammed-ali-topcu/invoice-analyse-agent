@@ -15,7 +15,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import { index as invoicesUpload } from '@/actions/App/Http/Controllers/InvoiceController';
+import { index as invoicesIndex, create as invoicesUpload } from '@/actions/App/Http/Controllers/InvoiceController';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -23,6 +23,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         href: dashboard(),
         icon: LayoutGrid,
+    },
+    {
+        title: 'Invoices',
+        href: invoicesIndex.url(),
+        icon: FolderGit2, // using folder icon for list
     },
     {
         title: 'Upload Invoice',

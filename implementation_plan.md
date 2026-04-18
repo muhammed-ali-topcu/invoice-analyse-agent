@@ -1,128 +1,83 @@
-# Invoice Image Upload 
-Implement a multi-file invoice image upload feature with full backend stack (migration, model, repository, service, form request, API resource, controller, routes) and a Vue frontend upload page.
+# Invoice List Endpoint
+
+Implement a page and endpoint to list uploaded invoices with search, filtering, sorting, and pagination.
 
 ---
 
 ## Proposed Changes
 
-### 1. Database — Migration
+### 1. Routes & Controller Structure
 
-#### [NEW] `create_invoices_table` migration
+#### [MODIFY] `routes/web.php`
+- Change `Route::get('invoices/upload', [InvoiceController::class, 'index'])` to use the `create` method: `[InvoiceController::class, 'create']`.
+- Add a new route `Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');`
 
-Columns:
-| Column | Type | Notes |
-|---|---|---|
-| `id` | bigint (PK) | auto-increment |
-| `original_file_name` | string | original filename from upload |
-| `file_path` | string | path within `storage/app/invoices/` |
-| `mime_type` | string | e.g. `image/jpeg` |
-| `file_size` | unsignedInteger | bytes |
-| `status` | string | default `'pending'` |
-| `uploaded_at` | timestamp | nullable |
-| `created_at` / `updated_at` | timestamps | |
+#### [MODIFY] `app/Http/Controllers/InvoiceController.php`
+- Change the current `index` method to `create`.
+- Add a new `index(Request $request)` method:
+  - Extract search term (`search`), status filter (`status`), sort field (`sort` defaulting to `uploaded_at`), sort direction (`direction` defaulting to `desc`).
+  - Query the `Invoice` model:
+    - Apply `where('original_file_name', 'like', "%{$search}%")` if search is present.
+    - Apply `where('status', $status)` if status is present.
+    - Apply `orderBy($sort, $direction)`.
+    - Paginate the results (e.g., 10 per page) while preserving query string parameters `withQueryString()`.
+  - Return `Inertia::render('Invoices/Index', ['invoices' => InvoiceResource::collection($paginatedInvoices), 'filters' => $request->only(['search', 'status', 'sort', 'direction'])])`.
 
----
+### 2. Frontend Vue Component
 
-### 2. Backend PHP
+#### [NEW] `resources/js/pages/Invoices/Index.vue`
+- Create an Inertia page to display the list of invoices.
+- **Search & Filters**: 
+  - Text input bound to `search` query parameter.
+  - Select dropdown for `status` filtering (Pending, Processing, Completed, Failed).
+- **Data Table**:
+  - Columns: Invoice Thumb, Name (`original_file_name`), Size (`file_size`), Uploaded At (`uploaded_at`), Status Badge (`status`).
+  - Column headers for Name, Size, and Uploaded At will be clickable to toggle sorting (`asc`/`desc`).
+  - Invoice Thumb will display an image tag using `invoice.file_url`.
+- **Status Badge**:
+  - Colored badges based on status (e.g., green for Completed, gray for Pending, red for Failed).
+- **Pagination**:
+  - Use Inertia links to navigate through `invoices.links`.
 
-#### [NEW] `app/Models/Invoice.php`
-Eloquent model with `$fillable`, casts (`uploaded_at` → datetime), and a `StatusEnum` for status values.
+#### [MODIFY] `resources/js/components/AppSidebar.vue`
+- Add a navigation link to `invoices.index` using the `wayfinder` helper or Inertia `<Link>`.
 
-#### [NEW] `app/Enums/InvoiceStatus.php`
-```
-Pending, Processing, Completed, Failed
-```
+### 3. Tests
 
-#### [NEW] `app/Repositories/InvoiceRepository.php`
-Repository interface + concrete class:
-- `create(array $data): Invoice`
-- `findById(int $id): Invoice`
-- `all(): Collection`
-
-#### [NEW] `app/Services/InvoiceUploadService.php`
-Service class:
-- Stores file to `storage/app/invoices/{unique-name}` via `Storage::disk('local')`
-- Delegates DB persistence to `InvoiceRepository`
-- Returns created `Invoice` model
-
-#### [NEW] `app/Http/Requests/StoreInvoiceRequest.php`
-Validates:
-- `invoices` — required array, min 1 item
-- `invoices.*` — file, mimes: jpeg/jpg/png/pdf, max 10 MB
-
-#### [NEW] `app/Http/Resources/InvoiceResource.php`
-API resource wrapping all invoice fields.
-
-#### [NEW] `app/Http/Controllers/InvoiceController.php`
-- `index()` → Inertia page `Invoices/Upload`
-- `store(StoreInvoiceRequest)` → loop files, call service, return `InvoiceResource::collection()`
-
----
-
-### 3. Routes
-
-#### [MODIFY] [web.php](file:///home/ali/Development/invoice-analyse-agent/routes/web.php)
-
-Add inside the `auth + verified` group:
-```php
-Route::get('invoices/upload', [InvoiceController::class, 'index'])->name('invoices.upload');
-Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
-```
-
----
-
-### 4. Frontend Vue
-
-#### [NEW] `resources/js/pages/Invoices/Upload.vue`
-
-A polished Inertia + Vue 3 upload page with:
-- Drag-and-drop file drop zone (+ click-to-browse fallback)
-- File list preview showing name, size, type with remove button
-- Submit button triggers `useForm` POST to `invoices.store`
-- Success state shows each uploaded invoice's status badge
-- Wayfinder import for the `store` action URL
-
-#### [NEW] Wayfinder regeneration
-Run `php artisan wayfinder:generate` after controller is created.
-
----
-
-### 5. Tests
-
-#### [NEW] `tests/Feature/InvoiceUploadTest.php`
-- Unauthenticated requests to `GET /invoices/upload` redirect to login
-- Unauthenticated `POST /invoices` → 302
-- Authenticated `GET /invoices/upload` → Inertia component rendered
-- Authenticated `POST /invoices` with valid images → 201, DB has records, files stored
-- `POST /invoices` with invalid file type → 422 validation error
-- Multiple files in one request → separate invoice records created
+#### [NEW] `tests/Feature/InvoiceListTest.php`
+- Verify `GET /invoices` requires authentication.
+- Verify the `invoices.index` page renders successfully with invoices.
+- Test sorting by name, size, and uploaded at.
+- Test searching by name.
+- Test filtering by status.
 
 ---
 
 ## Open Questions
 
 > [!IMPORTANT]
-> **Repository interface or concrete class only?**
-> Should `InvoiceRepository` be a plain concrete class, or should there be an interface + binding in a service provider? Using an interface is best practice (allows swapping implementations), but adds more files. Please confirm your preference.
+> **Invoice Thumbnails**
+> Currently, invoices are uploaded as images (jpeg, png) or pdfs. The database contains a `file_path`. Using `file_url` as an image source works for images, but for PDFs, we can't easily display a thumbnail without generating one on the backend (e.g., using Imagick/Spatie Media Library). 
+> For Phase One, should we display a generic PDF icon for PDF files, or do you want to implement PDF thumbnail generation?
 
 > [!IMPORTANT]
-> **Disk / visibility**
-> Files will be stored on the `local` disk (not publicly accessible) since invoices may be sensitive. If you need a public URL or S3 in the future, this is easy to change. Is `local` correct for now?
-
-> [!NOTE]
-> **Accepted MIME types**
-> Plan allows `image/jpeg`, `image/jpg`, `image/png`, and `application/pdf`. Should PDF be excluded (task says "image")?
+> **Default Sorting**
+> I plan to sort by `uploaded_at` descending by default so the newest uploads are at the top. Is this acceptable?
 
 ---
 
 ## Verification Plan
 
 ### Automated Tests
+Run tests to verify correct sorting, searching, and filtering.
 ```bash
-php artisan test --compact --filter=InvoiceUpload
+php artisan test --compact --filter=InvoiceList
 ```
 
 ### Manual Verification
-- Browse to `/invoices/upload` while logged in and upload 1–3 image files
-- Confirm files appear in `storage/app/invoices/`
-- Confirm rows appear in the `invoices` database table
+- Navigate to `/invoices` in the browser.
+- Verify the table loads properly with thumbnails.
+- Test the search bar to ensure it filters by filename.
+- Select a status from the dropdown to ensure it filters by status.
+- Click the table headers (Name, Size, Uploaded At) to verify sorting works.
+- Navigate to page 2 using the pagination links.

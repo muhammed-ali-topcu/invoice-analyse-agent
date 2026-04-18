@@ -3,6 +3,7 @@
 namespace App\Repositories\Contracts;
 
 use App\Models\Invoice;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 
 interface InvoiceRepositoryInterface
@@ -32,4 +33,9 @@ interface InvoiceRepositoryInterface
      * @return Collection<int, Invoice>
      */
     public function all(): Collection;
+
+    /**
+     * Get paginated invoices with optional search, status filtering, and sorting.
+     */
+    public function getPaginatedList(?string $search = null, ?string $status = null, string $sortField = 'uploaded_at', string $sortDirection = 'desc', int $perPage = 10): LengthAwarePaginator;
 }

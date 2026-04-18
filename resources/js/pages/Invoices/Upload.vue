@@ -2,7 +2,7 @@
 import { Head, router } from '@inertiajs/vue3';
 import { ref, computed } from 'vue';
 import { store } from '@/actions/App/Http/Controllers/InvoiceController';
-import { index as invoicesUpload } from '@/actions/App/Http/Controllers/InvoiceController';
+import { create as invoicesUpload } from '@/actions/App/Http/Controllers/InvoiceController';
 
 defineOptions({
     layout: {
