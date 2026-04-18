@@ -37,3 +37,24 @@ add view page for upload
 - [x] add search and filter by status
 - [x] table must be sortable by name, size, uploaded at
 - [x] with pageination
+
+
+
+
+# add Analysis migration and model
+- [x] Analysis is belogn to one invoice
+- [x] table columns:
+  - invoice_id
+  - json_data
+  - llm_name
+  - prompt_text
+  - created_at
+  - updated_at
+- [x] add needed relations
+
+
+## agetn
+make detaild plan for this task in prompt
+using https://laravel.com/docs/13.x/ai-sdk
+make agent that takes image of invoice and return json of invoice data
+save response in Analysis table

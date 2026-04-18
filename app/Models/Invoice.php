@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['original_file_name', 'file_path', 'mime_type', 'file_size', 'status', 'uploaded_at'])]
 class Invoice extends Model
@@ -24,5 +25,13 @@ class Invoice extends Model
             'uploaded_at' => 'datetime',
             'file_size' => 'integer',
         ];
+    }
+
+    /**
+     * Get the analyses associated with the invoice.
+     */
+    public function analyses(): HasMany
+    {
+        return $this->hasMany(Analysis::class);
     }
 }
