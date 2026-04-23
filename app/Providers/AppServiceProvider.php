@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Repositories\AnalysisRepository;
+use App\Repositories\Contracts\AnalysisRepositoryInterface;
 use App\Repositories\Contracts\InvoiceRepositoryInterface;
 use App\Repositories\InvoiceRepository;
 use Carbon\CarbonImmutable;
@@ -18,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(InvoiceRepositoryInterface::class, InvoiceRepository::class);
+        $this->app->bind(AnalysisRepositoryInterface::class, AnalysisRepository::class);
     }
 
     /**

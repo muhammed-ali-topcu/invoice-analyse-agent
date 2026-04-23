@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreInvoiceRequest;
+use App\Http\Resources\AnalysisResource;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Invoice;
 use App\Repositories\Contracts\InvoiceRepositoryInterface;
+use App\Services\InvoiceAnalysisService;
 use App\Services\InvoiceUploadService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Inertia\Inertia;
@@ -17,6 +20,7 @@ class InvoiceController extends Controller
     public function __construct(
         private readonly InvoiceUploadService $invoiceUploadService,
         private readonly InvoiceRepositoryInterface $invoiceRepository,
+        private readonly InvoiceAnalysisService $analysisService,
     ) {}
 
     /**
@@ -55,5 +59,17 @@ class InvoiceController extends Controller
             ->map(fn ($file) => $this->invoiceUploadService->store($file));
 
         return InvoiceResource::collection($invoices);
+    }
+
+    /**
+     * Analyse an invoice image and store the extracted data.
+     */
+    public function analyse(Invoice $invoice): JsonResponse
+    {
+        $analysis = $this->analysisService->analyse($invoice);
+
+        return (new AnalysisResource($analysis))
+            ->response()
+            ->setStatusCode(201);
     }
 }

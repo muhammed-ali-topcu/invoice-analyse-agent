@@ -134,4 +134,18 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Invoice Analysis Settings
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the AI Invoice Analysis Agent.
+    |
+    */
+
+    'invoice_analysis' => [
+        'model' => env('INVOICE_ANALYSIS_MODEL', 'google/gemini-2.0-flash-001'),
+        'prompt' => env('INVOICE_ANALYSIS_PROMPT', 'You are an expert invoice data extraction specialist. Extract all invoice fields from the attached image and return them as structured JSON. Be precise and thorough.'),
+    ],
+
 ];
