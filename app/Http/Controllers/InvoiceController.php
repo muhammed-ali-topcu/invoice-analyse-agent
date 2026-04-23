@@ -3,13 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreInvoiceRequest;
-use App\Http\Resources\AnalysisResource;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Invoice;
 use App\Repositories\Contracts\InvoiceRepositoryInterface;
 use App\Services\InvoiceAnalysisService;
 use App\Services\InvoiceUploadService;
-use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Inertia\Inertia;
@@ -43,6 +42,18 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Show the invoice detail page.
+     */
+    public function show(int $id): Response
+    {
+        $invoice = $this->invoiceRepository->findByIdWithLatestAnalysis($id);
+
+        return Inertia::render('Invoices/Show', [
+            'invoice' => InvoiceResource::make($invoice)->resolve(),
+        ]);
+    }
+
+    /**
      * Show the invoice upload page.
      */
     public function create(): Response
@@ -64,12 +75,12 @@ class InvoiceController extends Controller
     /**
      * Analyse an invoice image and store the extracted data.
      */
-    public function analyse(Invoice $invoice): JsonResponse
+    public function analyse(int $id): RedirectResponse
     {
-        $analysis = $this->analysisService->analyse($invoice);
+        $invoice = $this->invoiceRepository->findById($id);
 
-        return (new AnalysisResource($analysis))
-            ->response()
-            ->setStatusCode(201);
+        $this->analysisService->analyse($invoice);
+
+        return redirect()->route('invoices.show', $invoice);
     }
 }

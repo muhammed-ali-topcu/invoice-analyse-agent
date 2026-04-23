@@ -58,3 +58,16 @@ make detaild plan for this task in prompt
 using https://laravel.com/docs/13.x/ai-sdk
 make agent that takes image of invoice and return json of invoice data
 save response in Analysis table
+
+
+invoice detal page:
+show invoice info
+show invoice analysis
+if analysis is pending or loading show loading
+if analysis is ready show analysis
+
+
+i want to add show details page for invoice
+make a page that shows invoice info and analysis info
+plan it carfullay 
+show me detailed plan in prompt

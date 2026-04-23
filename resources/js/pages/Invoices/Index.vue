@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
-import { index as invoicesIndex } from '@/actions/App/Http/Controllers/InvoiceController';
+import { index as invoicesIndex, show as invoicesShow } from '@/actions/App/Http/Controllers/InvoiceController';
 
 defineOptions({
     layout: {
@@ -29,10 +29,12 @@ interface PaginationLink {
 
 interface PaginatedData {
     data: Invoice[];
-    links: PaginationLink[];
-    from: number;
-    to: number;
-    total: number;
+    meta: {
+        links: PaginationLink[];
+        from: number;
+        to: number;
+        total: number;
+    };
 }
 
 const props = defineProps<{
@@ -204,15 +206,23 @@ function getSortIcon(field: string) {
                                         </span>
                                     </td>
                                     <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                        <Link
-                                            v-if="invoice.status === 'pending' || invoice.status === 'failed'"
-                                            :href="`/invoices/${invoice.id}/analyse`"
-                                            method="post"
-                                            as="button"
-                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                                        >
-                                            Analyse
-                                        </Link>
+                                        <div class="flex items-center justify-end gap-3">
+                                            <Link
+                                                :href="invoicesShow.url(invoice.id)"
+                                                class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                                            >
+                                                View
+                                            </Link>
+                                            <Link
+                                                v-if="invoice.status === 'pending' || invoice.status === 'failed'"
+                                                :href="`/invoices/${invoice.id}/analyse`"
+                                                method="post"
+                                                as="button"
+                                                class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                            >
+                                                Analyse
+                                            </Link>
+                                        </div>
                                     </td>
                                 </tr>
                                 <tr v-if="invoices.data.length === 0">
@@ -228,16 +238,16 @@ function getSortIcon(field: string) {
         </div>
 
         <!-- Pagination -->
-        <div v-if="invoices.links.length > 3" class="mt-6 flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6 dark:border-gray-700">
+        <div v-if="invoices.meta.links.length > 3" class="mt-6 flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6 dark:border-gray-700">
             <div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                 <div>
                     <p class="text-sm text-gray-700 dark:text-gray-400">
-                        Showing <span class="font-medium">{{ invoices.from }}</span> to <span class="font-medium">{{ invoices.to }}</span> of <span class="font-medium">{{ invoices.total }}</span> results
+                        Showing <span class="font-medium">{{ invoices.meta.from }}</span> to <span class="font-medium">{{ invoices.meta.to }}</span> of <span class="font-medium">{{ invoices.meta.total }}</span> results
                     </p>
                 </div>
                 <div>
                     <nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                        <template v-for="(link, i) in invoices.links" :key="i">
+                        <template v-for="(link, i) in invoices.meta.links" :key="i">
                             <Link
                                 v-if="link.url"
                                 :href="link.url"
@@ -245,7 +255,7 @@ function getSortIcon(field: string) {
                                     link.active ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 dark:text-gray-300 dark:ring-gray-600 dark:hover:bg-gray-800',
                                     'relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20',
                                     i === 0 ? 'rounded-l-md' : '',
-                                    i === invoices.links.length - 1 ? 'rounded-r-md' : '',
+                                    i === invoices.meta.links.length - 1 ? 'rounded-r-md' : '',
                                 ]"
                                 v-html="link.label"
                             />
@@ -254,7 +264,7 @@ function getSortIcon(field: string) {
                                 :class="[
                                     'relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-300 ring-1 ring-inset ring-gray-300 dark:text-gray-600 dark:ring-gray-700',
                                     i === 0 ? 'rounded-l-md' : '',
-                                    i === invoices.links.length - 1 ? 'rounded-r-md' : '',
+                                    i === invoices.meta.links.length - 1 ? 'rounded-r-md' : '',
                                 ]"
                                 v-html="link.label"
                             />

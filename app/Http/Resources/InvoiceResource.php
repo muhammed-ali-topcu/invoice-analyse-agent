@@ -21,9 +21,13 @@ class InvoiceResource extends JsonResource
             'file_url' => asset('storage/'.$this->file_path),
             'mime_type' => $this->mime_type,
             'file_size' => $this->file_size,
-            'status' => $this->status,
+            'status' => $this->status?->value,
             'uploaded_at' => $this->uploaded_at?->toISOString(),
             'created_at' => $this->created_at?->toISOString(),
+            'analysis' => $this->whenLoaded('analyses', fn () => $this->analyses->first()
+                ? AnalysisResource::make($this->analyses->first())
+                : null
+            ),
         ];
     }
 }
