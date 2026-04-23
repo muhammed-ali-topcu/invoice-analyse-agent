@@ -33,10 +33,10 @@ class InvoiceAnalysisAgent implements Agent, HasStructuredOutput
     {
         return [
             'vendor_name' => $schema->string()->required(),
-            'vendor_address' => $schema->string(),
+            'vendor_address' => $schema->string()->required(),
             'invoice_number' => $schema->string()->required(),
             'invoice_date' => $schema->string()->description('ISO-8601 date')->required(),
-            'due_date' => $schema->string()->description('ISO-8601 date'),
+            'due_date' => $schema->string()->description('ISO-8601 date')->required(),
             'line_items' => $schema->array()->items(
                 $schema->object(fn ($s) => [
                     'description' => $s->string()->required(),
@@ -44,12 +44,12 @@ class InvoiceAnalysisAgent implements Agent, HasStructuredOutput
                     'unit_price' => $s->number()->required(),
                     'total' => $s->number()->required(),
                 ])
-            ),
+            )->required(),
             'subtotal' => $schema->number()->required(),
-            'tax' => $schema->number(),
+            'tax' => $schema->number()->required(),
             'total_amount' => $schema->number()->required(),
             'currency' => $schema->string()->description('3-letter ISO code')->required(),
-            'notes' => $schema->string(),
+            'notes' => $schema->string()->required(),
         ];
     }
 }

@@ -6,6 +6,7 @@ use App\Ai\Agents\InvoiceAnalysisAgent;
 use App\Models\Analysis;
 use App\Models\Invoice;
 use App\Repositories\Contracts\AnalysisRepositoryInterface;
+use Illuminate\Support\Facades\Log;
 use Laravel\Ai\Files\Image;
 
 class InvoiceAnalysisService
@@ -19,12 +20,11 @@ class InvoiceAnalysisService
      */
     public function analyse(Invoice $invoice): Analysis
     {
-        // Resolve image from the public disk
-        $image = Image::fromStorage($invoice->file_path);
+        
+        $image = Image::fromStorage($invoice->file_path, 'public');
 
         $promptText = config('ai.invoice_analysis.prompt');
         $model = config('ai.invoice_analysis.model');
-
         // Call the agent with the per-prompt model override
         $response = (new InvoiceAnalysisAgent)->prompt(
             $promptText,

@@ -177,6 +177,9 @@ function getSortIcon(field: string) {
                                     <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                                         Status
                                     </th>
+                                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                        <span class="sr-only">Actions</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
@@ -200,9 +203,20 @@ function getSortIcon(field: string) {
                                             {{ invoice.status }}
                                         </span>
                                     </td>
+                                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                        <Link
+                                            v-if="invoice.status === 'pending' || invoice.status === 'failed'"
+                                            :href="`/invoices/${invoice.id}/analyse`"
+                                            method="post"
+                                            as="button"
+                                            class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                        >
+                                            Analyse
+                                        </Link>
+                                    </td>
                                 </tr>
                                 <tr v-if="invoices.data.length === 0">
-                                    <td colspan="5" class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                                    <td colspan="6" class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                                         No invoices found.
                                     </td>
                                 </tr>
