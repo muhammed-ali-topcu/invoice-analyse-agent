@@ -13,6 +13,10 @@ defineOptions({
     },
 });
 
+const props = defineProps<{
+    invoices?: UploadedInvoice[];
+}>();
+
 interface UploadedInvoice {
     id: number;
     original_file_name: string;
@@ -27,8 +31,8 @@ const isDragging = ref(false);
 const isUploading = ref(false);
 const uploadProgress = ref(0);
 const uploadError = ref<string | null>(null);
-const validationErrors = ref<Record<string, string[]>>({});
-const uploadedInvoices = ref<UploadedInvoice[]>([]);
+const validationErrors = ref<Record<string, string>>({});
+const uploadedInvoices = computed(() => props.invoices ?? []);
 
 interface SelectedFile {
     file: File;
@@ -107,16 +111,14 @@ function submit() {
         onProgress: (progress) => {
             uploadProgress.value = progress?.percentage ?? 0;
         },
-        onSuccess: (page) => {
-            const data = (page as any)?.props?.invoices ?? [];
-            uploadedInvoices.value = data;
+        onSuccess: () => {
             selectedFiles.value.forEach(({ previewUrl }) =>
                 URL.revokeObjectURL(previewUrl),
             );
             selectedFiles.value = [];
         },
         onError: (errors) => {
-            validationErrors.value = errors as Record<string, string[]>;
+            validationErrors.value = errors;
             uploadError.value = 'Please fix the errors below and try again.';
         },
         onFinish: () => {
@@ -226,11 +228,11 @@ function submit() {
         >
             <ul class="space-y-1">
                 <li
-                    v-for="(messages, field) in validationErrors"
+                    v-for="(message, field) in validationErrors"
                     :key="field"
                     class="text-sm text-red-700 dark:text-red-400"
                 >
-                    {{ messages[0] }}
+                    {{ message }}
                 </li>
             </ul>
         </div>

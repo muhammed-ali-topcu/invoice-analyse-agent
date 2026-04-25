@@ -10,7 +10,6 @@ use App\Services\InvoiceGetter;
 use App\Services\InvoiceUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -59,12 +58,12 @@ class InvoiceController extends Controller
     /**
      * Store one or more uploaded invoice images.
      */
-    public function store(StoreInvoiceRequest $request): AnonymousResourceCollection
+    public function store(StoreInvoiceRequest $request): RedirectResponse
     {
         $invoices = collect($request->file('invoices'))
             ->map(fn ($file) => $this->invoiceUploadService->store($file));
 
-        return InvoiceResource::collection($invoices);
+        return redirect()->back()->with('invoices', InvoiceResource::collection($invoices)->resolve());
     }
 
     /**

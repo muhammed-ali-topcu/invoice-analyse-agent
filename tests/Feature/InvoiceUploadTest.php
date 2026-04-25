@@ -40,7 +40,7 @@ test('authenticated user can upload a single invoice image', function () {
 
     $this->actingAs($user)
         ->post(route('invoices.store'), ['invoices' => [$file]])
-        ->assertOk();
+        ->assertRedirect();
 
     expect(Invoice::count())->toBe(1);
 
@@ -63,7 +63,7 @@ test('authenticated user can upload multiple invoice images at once', function (
 
     $this->actingAs($user)
         ->post(route('invoices.store'), ['invoices' => $files])
-        ->assertOk();
+        ->assertRedirect();
 
     expect(Invoice::count())->toBe(3);
 
