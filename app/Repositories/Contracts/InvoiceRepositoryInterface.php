@@ -33,6 +33,11 @@ interface InvoiceRepositoryInterface
     public function findByIdWithLatestAnalysis(int $id): Invoice;
 
     /**
+     * Find an invoice by its primary key with all analyses loaded.
+     */
+    public function findByIdWithAllAnalyses(int $id): Invoice;
+
+    /**
      * Return all invoice records.
      *
      * @return Collection<int, Invoice>

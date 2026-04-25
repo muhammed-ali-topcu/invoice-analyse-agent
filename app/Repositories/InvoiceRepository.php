@@ -30,7 +30,17 @@ class InvoiceRepository implements InvoiceRepositoryInterface
      */
     public function findByIdWithLatestAnalysis(int $id): Invoice
     {
-        return Invoice::with(['analyses' => fn ($query) => $query->latest()->limit(1)])->findOrFail($id);
+        return Invoice::with(['analyses' => fn ($query) => $query->latest()->limit(1)])
+            ->findOrFail($id);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function findByIdWithAllAnalyses(int $id): Invoice
+    {
+        return Invoice::with(['analyses' => fn ($query) => $query->latest()])
+            ->findOrFail($id);
     }
 
     /**

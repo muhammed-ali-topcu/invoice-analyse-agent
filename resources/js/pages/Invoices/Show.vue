@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { index as invoicesIndex, show as invoicesShow, analyse as invoicesAnalyse } from '@/actions/App/Http/Controllers/InvoiceController';
 
 defineOptions({
@@ -31,9 +31,20 @@ interface Invoice {
     uploaded_at: string | null;
     created_at: string | null;
     analysis: Analysis | null;
+    analyses: Analysis[];
 }
 
 const props = defineProps<{ invoice: Invoice }>();
+
+// Use a ref to allow manual switching between analyses in history
+const currentAnalysis = ref<Analysis | null>(props.invoice.analysis ?? null);
+
+// Keep currentAnalysis in sync if the invoice prop changes (e.g. after analysis)
+watch(() => props.invoice.analysis, (newAnalysis) => {
+    if (newAnalysis) {
+        currentAnalysis.value = newAnalysis;
+    }
+}, { immediate: true });
 
 const statusColors: Record<string, string> = {
     pending: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
@@ -82,21 +93,21 @@ function humanizeKey(key: string): string {
 }
 
 const isProcessing = computed(() => props.invoice.status === 'processing');
-const isCompleted = computed(() => props.invoice.status === 'completed' && props.invoice.analysis !== null);
+const isCompleted = computed(() => props.invoice.status === 'completed' && currentAnalysis.value !== null);
 const canAnalyse = computed(() => props.invoice.status === 'pending' || props.invoice.status === 'failed');
 
 /** Flat key-value pairs from json_data (non-array/object values) */
 const analysisFields = computed<Array<{ key: string; value: unknown }>>(() => {
-    if (!props.invoice.analysis?.json_data) { return []; }
-    return Object.entries(props.invoice.analysis.json_data)
+    if (!currentAnalysis.value?.json_data) { return []; }
+    return Object.entries(currentAnalysis.value.json_data)
         .filter(([, v]) => isPrimitive(v))
         .map(([k, v]) => ({ key: k, value: v }));
 });
 
 /** Array fields from json_data (arrays of objects, e.g. line_items) */
 const analysisArrayFields = computed<Array<{ key: string; rows: unknown[] }>>(() => {
-    if (!props.invoice.analysis?.json_data) { return []; }
-    return Object.entries(props.invoice.analysis.json_data)
+    if (!currentAnalysis.value?.json_data) { return []; }
+    return Object.entries(currentAnalysis.value.json_data)
         .filter(([, v]) => Array.isArray(v))
         .map(([k, v]) => ({ key: k, rows: v as unknown[] }));
 });
@@ -220,8 +231,8 @@ function getRowValue(row: unknown, col: string): unknown {
                         <span class="text-sm font-medium text-gray-900 dark:text-white">Extracted Data</span>
                     </div>
                     <div class="text-right">
-                        <p class="text-xs text-gray-400 dark:text-gray-500">Model: <span class="font-mono text-gray-600 dark:text-gray-300">{{ invoice.analysis?.llm_name }}</span></p>
-                        <p class="text-xs text-gray-400 dark:text-gray-500">{{ formatDate(invoice.analysis?.created_at ?? null) }}</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">Model: <span class="font-mono text-gray-600 dark:text-gray-300">{{ currentAnalysis?.llm_name }}</span></p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500">{{ formatDate(currentAnalysis?.created_at ?? null) }}</p>
                     </div>
                 </div>
 
@@ -307,6 +318,45 @@ function getRowValue(row: unknown, col: string): unknown {
                     </svg>
                     {{ invoice.status === 'failed' ? 'Retry Analysis' : 'Analyse Invoice' }}
                 </Link>
+            </div>
+        </div>
+
+        <!-- Analysis History -->
+        <div v-if="invoice.analyses && invoice.analyses.length > 1" class="mt-12">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Analysis History</h2>
+            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Model</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Extracted Fields</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                        <tr v-for="analysis in invoice.analyses" :key="analysis.id" :class="{'bg-blue-50/30 dark:bg-blue-900/10': analysis.id === currentAnalysis?.id}">
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-700 dark:text-gray-300">
+                                {{ formatDate(analysis.created_at) }}
+                                <span v-if="analysis.id === props.invoice.analysis?.id" class="ml-2 text-[10px] font-bold uppercase text-blue-600 dark:text-blue-400">Latest</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-gray-600 dark:text-gray-400">{{ analysis.llm_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                                {{ analysis.json_data ? Object.keys(analysis.json_data).length : 0 }} fields
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right">
+                                <button
+                                    @click="currentAnalysis = analysis"
+                                    class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs font-medium"
+                                    :disabled="analysis.id === currentAnalysis?.id"
+                                    :class="{'opacity-50 cursor-default': analysis.id === currentAnalysis?.id}"
+                                >
+                                    View Details
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

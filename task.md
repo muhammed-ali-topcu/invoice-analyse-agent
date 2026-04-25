@@ -71,3 +71,18 @@ i want to add show details page for invoice
 make a page that shows invoice info and analysis info
 plan it carfullay 
 show me detailed plan in prompt
+
+
+
+
+#free
+google/gemma-3-27b-it:free
+meta-llama/llama-3.2-11b-vision-instruct:free
+google/gemma-3-12b-it:free
+openrouter/free
+
+
+#paid
+openai/gpt-5.5:paid
+anthropic/claude-4.6-sonnet
+google/gemini-3.1-pro

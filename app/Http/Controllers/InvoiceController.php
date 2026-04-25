@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreInvoiceRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Invoice;
-use App\Repositories\Contracts\InvoiceRepositoryInterface;
 use App\Services\InvoiceAnalysisService;
+use App\Services\InvoiceGetter;
 use App\Services\InvoiceUploadService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +18,7 @@ class InvoiceController extends Controller
 {
     public function __construct(
         private readonly InvoiceUploadService $invoiceUploadService,
-        private readonly InvoiceRepositoryInterface $invoiceRepository,
+        private readonly InvoiceGetter $invoiceGetter,
         private readonly InvoiceAnalysisService $analysisService,
     ) {}
 
@@ -27,12 +27,7 @@ class InvoiceController extends Controller
      */
     public function index(Request $request): Response
     {
-        $search = $request->query('search');
-        $status = $request->query('status');
-        $sort = $request->query('sort', 'uploaded_at');
-        $direction = $request->query('direction', 'desc');
-
-        $invoices = $this->invoiceRepository->getPaginatedList($search, $status, $sort, $direction, 10);
+        $invoices = $this->invoiceGetter->getPaginatedInvoices($request->all());
         $invoices->withQueryString();
 
         return Inertia::render('Invoices/Index', [
@@ -46,10 +41,10 @@ class InvoiceController extends Controller
      */
     public function show(int $id): Response
     {
-        $invoice = $this->invoiceRepository->findByIdWithLatestAnalysis($id);
+        $invoice = $this->invoiceGetter->getInvoiceWithAllAnalyses($id);
 
         return Inertia::render('Invoices/Show', [
-            'invoice' => InvoiceResource::make($invoice)->resolve(),
+            'invoice' => InvoiceResource::make($invoice),
         ]);
     }
 
@@ -77,7 +72,7 @@ class InvoiceController extends Controller
      */
     public function analyse(int $id): RedirectResponse
     {
-        $invoice = $this->invoiceRepository->findById($id);
+        $invoice = $this->invoiceGetter->getInvoiceById($id);
 
         $this->analysisService->analyse($invoice);
 

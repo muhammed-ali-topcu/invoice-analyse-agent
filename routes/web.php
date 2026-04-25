@@ -11,13 +11,12 @@ Route::inertia('/', 'Welcome', [
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'Dashboard')->name('dashboard');
 
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/upload', [InvoiceController::class, 'create'])->name('invoices.upload');
+    Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
+    Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
+    Route::post('invoices/{invoice}/analyse', [InvoiceController::class, 'analyse'])->name('invoices.analyse');
 
 });
 
-Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
-Route::get('invoices/upload', [InvoiceController::class, 'create'])->name('invoices.upload');
-Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
-Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
-Route::post('invoices/{invoice}/analyse', [InvoiceController::class, 'analyse'])->name('invoices.analyse');
-
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';
