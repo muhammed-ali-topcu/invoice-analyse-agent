@@ -13,6 +13,7 @@ class InvoiceAnalysisService
 {
     public function __construct(
         private readonly AnalysisRepositoryInterface $analysisRepository,
+        private readonly InvoiceAnalysisAgent $agent,
     ) {}
 
     /**
@@ -25,12 +26,11 @@ class InvoiceAnalysisService
         try {
             $image = Image::fromStorage($invoice->file_path, 'public');
 
-            $promptText = config('ai.invoice_analysis.prompt');
-            $model = config('ai.invoice_analysis.model');
-            // Call the agent with the per-prompt model override
-            $response = (new InvoiceAnalysisAgent)->prompt(
+            $promptText = (string) $this->agent->instructions();
+
+            // Call the agent without per-prompt overrides to use its dynamic settings
+            $response = $this->agent->prompt(
                 $promptText,
-                model: $model,
                 attachments: [$image],
             );
 
@@ -40,7 +40,7 @@ class InvoiceAnalysisService
             $analysis = $this->analysisRepository->create([
                 'invoice_id' => $invoice->id,
                 'json_data' => $jsonData,
-                'llm_name' => $model,
+                'llm_name' => $this->agent->model() ?? config('ai.invoice_analysis.model'),
                 'prompt_text' => $promptText,
             ]);
 

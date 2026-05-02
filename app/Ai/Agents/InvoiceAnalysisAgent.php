@@ -2,8 +2,8 @@
 
 namespace App\Ai\Agents;
 
+use App\Repositories\Contracts\OptionRepositoryInterface;
 use Illuminate\Contracts\JsonSchema\JsonSchema;
-use Laravel\Ai\Attributes\Provider;
 use Laravel\Ai\Attributes\Temperature;
 use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
@@ -11,7 +11,6 @@ use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\Promptable;
 use Stringable;
 
-#[Provider('openrouter')]
 #[Temperature(0.0)]
 #[Timeout(120)]
 class InvoiceAnalysisAgent implements Agent, HasStructuredOutput
@@ -19,11 +18,32 @@ class InvoiceAnalysisAgent implements Agent, HasStructuredOutput
     use Promptable;
 
     /**
+     * Create a new agent instance.
+     */
+    public function __construct(protected OptionRepositoryInterface $options) {}
+
+    /**
+     * Get the provider that the agent should use.
+     */
+    public function provider(): ?string
+    {
+        return $this->options->getValue('ai_provider');
+    }
+
+    /**
+     * Get the model that the agent should use.
+     */
+    public function model(): ?string
+    {
+        return $this->options->getValue('ai_model');
+    }
+
+    /**
      * Get the instructions that the agent should follow.
      */
     public function instructions(): Stringable|string
     {
-        return config('ai.invoice_analysis.prompt');
+        return $this->options->getValue('ai_prompt', config('ai.invoice_analysis.prompt'));
     }
 
     /**

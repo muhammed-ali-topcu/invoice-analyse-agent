@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
-import { index as invoicesIndex, show as invoicesShow, analyse as invoicesAnalyse } from '@/actions/App/Http/Controllers/InvoiceController';
+import { index as invoicesIndex, analyse as invoicesAnalyse } from '@/actions/App/Http/Controllers/InvoiceController';
 
 defineOptions({
     layout: () => ({
@@ -38,6 +38,7 @@ const props = defineProps<{ invoice: Invoice }>();
 
 // Use a ref to allow manual switching between analyses in history
 const currentAnalysis = ref<Analysis | null>(props.invoice.analysis ?? null);
+const showPrompt = ref(false);
 
 // Keep currentAnalysis in sync if the invoice prop changes (e.g. after analysis)
 watch(() => props.invoice.analysis, (newAnalysis) => {
@@ -109,8 +110,9 @@ function humanizeKey(key: string): string {
 }
 
 const isProcessing = computed(() => props.invoice.status === 'processing');
-const isCompleted = computed(() => props.invoice.status === 'completed' && currentAnalysis.value !== null);
+const hasAnalyses = computed(() => props.invoice.analyses && props.invoice.analyses.length > 0);
 const canAnalyse = computed(() => props.invoice.status === 'pending' || props.invoice.status === 'failed');
+const canAnalyseAgain = computed(() => props.invoice.status === 'completed' && !isProcessing.value);
 
 /** Flat key-value pairs from json_data (non-array/object values) */
 const analysisFields = computed<Array<{ key: string; value: unknown }>>(() => {
@@ -146,10 +148,82 @@ return [];
 /** Get value from a row object for a given column key */
 function getRowValue(row: unknown, col: string): unknown {
     if (!row || typeof row !== 'object') {
-return null;
-}
+        return null;
+    }
 
     return (row as Record<string, unknown>)[col];
+}
+
+// Magnifier Logic
+const rotation = ref(0);
+const containerRef = ref<HTMLDivElement | null>(null);
+const imageRef = ref<HTMLImageElement | null>(null);
+const isHovering = ref(false);
+const magnifierPos = ref({ x: 0, y: 0 });
+const magnifierSize = 400;
+const zoomScale = 2.5;
+
+const rotateLeft = () => {
+    rotation.value = (rotation.value - 90 + 360) % 360;
+};
+
+const rotateRight = () => {
+    rotation.value = (rotation.value + 90) % 360;
+};
+
+const magnifierStyle = computed(() => {
+    if (!imageRef.value || !isHovering.value) {
+        return { display: 'none' };
+    }
+
+    const imgRect = imageRef.value.getBoundingClientRect();
+
+    // Position of the mouse relative to the actual image content
+    const x = magnifierPos.value.x - imgRect.left;
+    const y = magnifierPos.value.y - imgRect.top;
+
+    // Calculate background position based on rotation
+    let bgX = 0;
+    let bgY = 0;
+
+    const w = imgRect.width;
+    const h = imgRect.height;
+
+    if (rotation.value === 0) {
+        bgX = (x / w) * 100;
+        bgY = (y / h) * 100;
+    } else if (rotation.value === 90) {
+        bgX = (y / h) * 100;
+        bgY = (1 - x / w) * 100;
+    } else if (rotation.value === 180) {
+        bgX = (1 - x / w) * 100;
+        bgY = (1 - y / h) * 100;
+    } else if (rotation.value === 270) {
+        bgX = (1 - y / h) * 100;
+        bgY = (x / w) * 100;
+    }
+
+    return {
+        display: 'block',
+        position: 'fixed',
+        top: `${magnifierPos.value.y - magnifierSize / 2}px`,
+        left: `${magnifierPos.value.x - magnifierSize / 2}px`,
+        width: `${magnifierSize}px`,
+        height: `${magnifierSize}px`,
+        backgroundImage: `url(${props.invoice.file_url})`,
+        backgroundSize: (rotation.value === 90 || rotation.value === 270)
+            ? `${h * zoomScale}px ${w * zoomScale}px`
+            : `${w * zoomScale}px ${h * zoomScale}px`,
+        backgroundPosition: `${bgX}% ${bgY}%`,
+        transform: `rotate(${rotation.value}deg)`,
+        pointerEvents: 'none',
+        zIndex: 9999,
+        transition: 'opacity 0.2s ease-in-out',
+    };
+});
+
+function handleMouseMove(e: MouseEvent) {
+    magnifierPos.value = { x: e.clientX, y: e.clientY };
 }
 </script>
 
@@ -175,21 +249,72 @@ return null;
             <div class="lg:col-span-5 xl:col-span-5 flex flex-col gap-6">
                 <div class="sticky top-8">
                     <div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm dark:border-gray-800 dark:bg-gray-900/50 flex items-center justify-center min-h-[300px]">
-                        <a :href="invoice.file_url" target="_blank" class="block w-full h-full relative group">
+                        <div 
+                            ref="containerRef"
+                            class="relative w-full h-full cursor-zoom-in overflow-hidden rounded-xl group"
+                            @mouseenter="isHovering = true"
+                            @mouseleave="isHovering = false"
+                            @mousemove="handleMouseMove"
+                        >
                             <img
+                                ref="imageRef"
                                 :src="invoice.file_url"
                                 :alt="invoice.original_file_name"
-                                class="w-full h-auto max-h-[85vh] object-contain rounded-xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 group-hover:opacity-90 transition-opacity"
+                                class="w-full h-auto max-h-[85vh] object-contain rounded-xl shadow-sm border border-gray-200/50 dark:border-gray-700/50 transition-all duration-300"
+                                :class="{ 'opacity-50': isHovering }"
+                                :style="{ transform: `rotate(${rotation}deg)` }"
                             />
-                            <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/5 rounded-xl">
-                                <span class="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm shadow-lg font-medium flex items-center gap-1.5">
+                            
+                            <!-- Rotation & Controls Toolbar -->
+                            <div class="absolute top-4 right-4 flex flex-col gap-2 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    @click.stop="rotateLeft" 
+                                    class="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-90"
+                                    title="Rotate Left"
+                                >
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-6 6m0 0l-6-6m6 6V9a6 6 0 0112 0v3" />
+                                    </svg>
+                                </button>
+                                <button 
+                                    @click.stop="rotateRight" 
+                                    class="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-90"
+                                    title="Rotate Right"
+                                >
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15l6 6m0 0l6-6m-6 6V9a6 6 0 00-12 0v3" />
+                                    </svg>
+                                </button>
+                                <a 
+                                    :href="invoice.file_url" 
+                                    target="_blank" 
+                                    class="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-90"
+                                    title="Open Original"
+                                >
+                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z" />
+                                    </svg>
+                                </a>
+                            </div>
+
+                            <!-- Magnifier glass -->
+                            <Teleport to="body">
+                                <div
+                                    v-if="isHovering"
+                                    :style="magnifierStyle"
+                                    class="rounded-2xl border-4 border-white shadow-[0_0_30px_rgba(0,0,0,0.4)] pointer-events-none ring-1 ring-black/10"
+                                ></div>
+                            </Teleport>
+
+                            <div v-if="!isHovering" class="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-black/5 rounded-xl">
+                                <a :href="invoice.file_url" target="_blank" class="bg-black/75 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-sm shadow-lg font-medium flex items-center gap-1.5">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z" />
                                     </svg>
                                     Open Original
-                                </span>
+                                </a>
                             </div>
-                        </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -243,13 +368,25 @@ return null;
                             <svg class="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
                             AI Analysis
                         </h2>
+                        <Link
+                            v-if="canAnalyseAgain"
+                            :href="invoicesAnalyse.url(invoice.id)"
+                            method="post"
+                            as="button"
+                            class="inline-flex items-center gap-1.5 rounded-xl bg-blue-600/10 px-4 py-2 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white transition-all active:scale-95 border border-blue-600/20"
+                        >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Analyse Again
+                        </Link>
                     </div>
 
                     <!-- Tabs -->
-                    <div v-if="invoice.analyses && invoice.analyses.length > 1" class="border-b border-gray-200 dark:border-gray-800">
+                    <div v-if="hasAnalyses" class="border-b border-gray-200 dark:border-gray-800">
                         <nav class="-mb-px flex space-x-6 overflow-x-auto scrollbar-hide" aria-label="Tabs">
                             <button
-                                v-for="(analysis, index) in invoice.analyses"
+                                v-for="analysis in invoice.analyses"
                                 :key="analysis.id"
                                 @click="currentAnalysis = analysis"
                                 :class="[
@@ -266,12 +403,21 @@ return null;
                                 {{ formatDate(analysis.created_at) }}
                                 <span class="text-xs font-mono font-normal opacity-70 border border-current rounded px-1.5 py-0.5 ml-1">{{ analysis.llm_name }}</span>
                             </button>
+                            
+                            <!-- Processing Tab -->
+                            <div v-if="isProcessing" class="border-b-2 border-blue-500/50 py-3 px-1 text-sm font-medium flex items-center gap-2 text-blue-500 animate-pulse">
+                                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                                </svg>
+                                New analysis…
+                            </div>
                         </nav>
                     </div>
 
-                    <!-- Processing State -->
+                    <!-- Processing State (No previous analysis) -->
                     <div
-                        v-if="isProcessing"
+                        v-if="isProcessing && !hasAnalyses"
                         class="rounded-2xl border border-blue-100 bg-blue-50/50 dark:border-blue-900/20 dark:bg-blue-900/10 p-8 space-y-6"
                     >
                         <div class="flex items-center gap-3">
@@ -279,7 +425,7 @@ return null;
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
                             </svg>
-                            <p class="text-base font-medium text-blue-700 dark:text-blue-400">Analysis in progress…</p>
+                            <p class="text-base font-medium text-blue-700 dark:text-blue-400">Initial analysis in progress…</p>
                         </div>
                         <div class="animate-pulse space-y-4">
                             <div class="grid grid-cols-2 sm:grid-cols-3 gap-6">
@@ -292,9 +438,9 @@ return null;
                         </div>
                     </div>
 
-                    <!-- Completed State -->
+                    <!-- Completed State / Existing Analysis while Processing -->
                     <div
-                        v-else-if="isCompleted"
+                        v-else-if="currentAnalysis"
                         class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 shadow-sm overflow-hidden"
                     >
                         <!-- Header -->
@@ -312,6 +458,27 @@ return null;
                                     <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
                                     {{ currentAnalysis?.llm_name }}
                                 </span>
+                            </div>
+                        </div>
+
+                        <!-- Prompt Toggle -->
+                        <div v-if="currentAnalysis?.prompt_text" class="px-6 py-3 border-b border-gray-100 dark:border-gray-800/40 bg-gray-50/30 dark:bg-gray-800/10">
+                            <button 
+                                @click="showPrompt = !showPrompt" 
+                                class="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors"
+                            >
+                                <svg :class="['h-3.5 w-3.5 transition-transform duration-200', showPrompt ? 'rotate-90' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                                </svg>
+                                AI Instructions & Prompt
+                            </button>
+                            <div v-if="showPrompt" class="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div class="relative group">
+                                    <pre class="text-[11px] font-mono leading-relaxed text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-950 p-4 rounded-xl border border-gray-200 dark:border-gray-800 overflow-x-auto whitespace-pre-wrap max-h-60 scrollbar-thin">{{ currentAnalysis.prompt_text }}</pre>
+                                    <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <span class="bg-gray-100 dark:bg-gray-800 text-[10px] px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-gray-500">System Prompt</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
