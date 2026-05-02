@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Repositories\AnalysisRepository;
 use App\Repositories\Contracts\AnalysisRepositoryInterface;
 use App\Repositories\Contracts\InvoiceRepositoryInterface;
+use App\Repositories\Contracts\OptionRepositoryInterface;
 use App\Repositories\InvoiceRepository;
+use App\Repositories\OptionRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(InvoiceRepositoryInterface::class, InvoiceRepository::class);
         $this->app->bind(AnalysisRepositoryInterface::class, AnalysisRepository::class);
+        $this->app->bind(OptionRepositoryInterface::class, OptionRepository::class);
     }
 
     /**

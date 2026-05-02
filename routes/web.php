@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\OptionsController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -17,6 +18,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::post('invoices/{invoice}/analyse', [InvoiceController::class, 'analyse'])->name('invoices.analyse');
 
+    Route::get('options', [OptionsController::class, 'index'])->name('options.index');
 });
 
 require __DIR__.'/settings.php';
