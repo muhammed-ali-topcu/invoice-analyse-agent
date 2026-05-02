@@ -15,7 +15,30 @@ defineOptions({
 interface Analysis {
     id: number;
     invoice_id: number;
-    json_data: Record<string, unknown>;
+    json_data: {
+        vendor_name: string;
+        vendor_address: string;
+        invoice_number: string;
+        invoice_date: string;
+        due_date: string;
+        line_items: Array<{
+            description: string;
+            quantity: number;
+            discount: number | null;
+            presents: number | null;
+            unit_price: number;
+            total: number;
+        }>;
+        subtotal: number;
+        discount_total: number | null;
+        present_total: number | null;
+        total_amount: number;
+        paid_amount: number | null;
+        dept_amount: number | null;
+        currency: string;
+        notes: string;
+        [key: string]: any;
+    };
     llm_name: string;
     prompt_text: string;
     created_at: string;
@@ -102,6 +125,10 @@ function renderValue(value: unknown): string {
  * Convert a snake_case / camelCase key to a readable label.
  */
 function humanizeKey(key: string): string {
+    if (key === 'dept_amount') {
+ return 'Debt Amount'; 
+}
+
     return key
         .replace(/_/g, ' ')
         .replace(/([A-Z])/g, ' $1')
@@ -109,50 +136,92 @@ function humanizeKey(key: string): string {
         .trim();
 }
 
+/**
+ * Format a number as currency with the given ISO code.
+ */
+function formatCurrency(amount: unknown, currency: string = 'USD'): string {
+    if (typeof amount !== 'number') {
+ return '-'; 
+}
+
+    try {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: currency || 'USD',
+        }).format(amount);
+    } catch (e) {
+        return `${amount.toFixed(2)} ${currency}`;
+    }
+}
+
 const isProcessing = computed(() => props.invoice.status === 'processing');
 const hasAnalyses = computed(() => props.invoice.analyses && props.invoice.analyses.length > 0);
 const canAnalyse = computed(() => props.invoice.status === 'pending' || props.invoice.status === 'failed');
 const canAnalyseAgain = computed(() => props.invoice.status === 'completed' && !isProcessing.value);
 
-/** Flat key-value pairs from json_data (non-array/object values) */
-const analysisFields = computed<Array<{ key: string; value: unknown }>>(() => {
+/**
+ * Extract summary fields that should be displayed at the top.
+ */
+const summaryData = computed(() => {
+    const data = currentAnalysis.value?.json_data;
+    if (!data) {
+ return null; 
+}
+
+    return {
+        vendor: data.vendor_name,
+        address: data.vendor_address,
+        number: data.invoice_number,
+        date: data.invoice_date,
+        dueDate: data.due_date,
+        currency: data.currency,
+        total: data.total_amount,
+    };
+});
+
+/**
+ * Extract financial totals for the footer.
+ */
+const financialTotals = computed(() => {
+    const data = currentAnalysis.value?.json_data;
+    if (!data) {
+ return []; 
+}
+
+    return [
+        { key: 'subtotal', value: data.subtotal },
+        { key: 'discount_total', value: data.discount_total },
+        { key: 'present_total', value: data.present_total },
+        { key: 'total_amount', value: data.total_amount, highlight: true },
+        { key: 'paid_amount', value: data.paid_amount },
+        { key: 'dept_amount', value: data.dept_amount },
+    ].filter(f => f.value !== undefined);
+});
+
+/** Other fields from json_data that aren't part of the structured sections */
+const otherFields = computed<Array<{ key: string; value: unknown }>>(() => {
     if (!currentAnalysis.value?.json_data) {
  return []; 
 }
 
+    const structuredKeys = [
+        'vendor_name', 'vendor_address', 'invoice_number', 'invoice_date', 'due_date',
+        'subtotal', 'discount_total', 'present_total', 'total_amount', 'paid_amount', 'dept_amount',
+        'currency', 'line_items', 'notes'
+    ];
+
     return Object.entries(currentAnalysis.value.json_data)
-        .filter(([, v]) => isPrimitive(v))
+        .filter(([k, v]) => isPrimitive(v) && !structuredKeys.includes(k))
         .map(([k, v]) => ({ key: k, value: v }));
 });
 
-/** Array fields from json_data (arrays of objects, e.g. line_items) */
-const analysisArrayFields = computed<Array<{ key: string; rows: unknown[] }>>(() => {
-    if (!currentAnalysis.value?.json_data) {
- return []; 
-}
-
-    return Object.entries(currentAnalysis.value.json_data)
-        .filter(([, v]) => Array.isArray(v))
-        .map(([k, v]) => ({ key: k, rows: v as unknown[] }));
+/** The main line items table data */
+const lineItems = computed(() => {
+    return currentAnalysis.value?.json_data?.line_items || [];
 });
 
-/** Get keys from a row object for table headers */
-function getRowKeys(row: unknown): string[] {
-    if (!row || typeof row !== 'object') {
-return [];
-}
-
-    return Object.keys(row as Record<string, unknown>);
-}
-
-/** Get value from a row object for a given column key */
-function getRowValue(row: unknown, col: string): unknown {
-    if (!row || typeof row !== 'object') {
-        return null;
-    }
-
-    return (row as Record<string, unknown>)[col];
-}
+/** Fixed keys for line items to ensure consistent columns */
+const lineItemKeys = ['description', 'quantity', 'unit_price', 'discount', 'presents', 'total'];
 
 // Magnifier Logic
 const rotation = ref(0);
@@ -265,37 +334,7 @@ function handleMouseMove(e: MouseEvent) {
                                 :style="{ transform: `rotate(${rotation}deg)` }"
                             />
                             
-                            <!-- Rotation & Controls Toolbar -->
-                            <div class="absolute top-4 right-4 flex flex-col gap-2 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                    @click.stop="rotateLeft" 
-                                    class="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-90"
-                                    title="Rotate Left"
-                                >
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-6 6m0 0l-6-6m6 6V9a6 6 0 0112 0v3" />
-                                    </svg>
-                                </button>
-                                <button 
-                                    @click.stop="rotateRight" 
-                                    class="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-90"
-                                    title="Rotate Right"
-                                >
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 15l6 6m0 0l6-6m-6 6V9a6 6 0 00-12 0v3" />
-                                    </svg>
-                                </button>
-                                <a 
-                                    :href="invoice.file_url" 
-                                    target="_blank" 
-                                    class="p-2.5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-md rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-90"
-                                    title="Open Original"
-                                >
-                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z" />
-                                    </svg>
-                                </a>
-                            </div>
+
 
                             <!-- Magnifier glass -->
                             <Teleport to="body">
@@ -315,6 +354,38 @@ function handleMouseMove(e: MouseEvent) {
                                 </a>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- Rotation & Controls Toolbar (Moved below) -->
+                    <div class="flex items-center justify-center gap-3 py-2">
+                        <button 
+                            @click="rotateLeft" 
+                            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-95 text-sm font-medium"
+                        >
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-6 6m0 0l-6-6m6 6V9a6 6 0 0112 0v3" />
+                            </svg>
+                            Rotate Left
+                        </button>
+                        <button 
+                            @click="rotateRight" 
+                            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-95 text-sm font-medium"
+                        >
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 15l6 6m0 0l6-6m-6 6V9a6 6 0 00-12 0v3" />
+                            </svg>
+                            Rotate Right
+                        </button>
+                        <a 
+                            :href="invoice.file_url" 
+                            target="_blank" 
+                            class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400 transition-all active:scale-95 text-sm font-medium"
+                        >
+                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M10 21h7a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v11m0 5l4.879-4.879m0 0a3 3 0 104.243-4.242 3 3 0 00-4.243 4.242z" />
+                            </svg>
+                            View Original
+                        </a>
                     </div>
                 </div>
             </div>
@@ -482,64 +553,126 @@ function handleMouseMove(e: MouseEvent) {
                             </div>
                         </div>
 
-                        <!-- Key-value fields -->
-                        <div v-if="analysisFields.length > 0" class="px-6 py-6">
-                            <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
-                                <div v-for="field in analysisFields" :key="field.key" class="bg-gray-50/50 dark:bg-gray-800/20 p-3 rounded-lg border border-gray-100 dark:border-gray-800/50">
-                                    <dt class="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                        {{ humanizeKey(field.key) }}
-                                    </dt>
-                                    <dd class="mt-1.5 text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
-                                        {{ renderValue(field.value) }}
-                                    </dd>
+                        <!-- Structured Information -->
+                        <div v-if="summaryData" class="px-6 py-6 border-b border-gray-100 dark:border-gray-800/40">
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                <!-- Vendor Info -->
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Vendor</label>
+                                        <p class="mt-1 text-lg font-bold text-gray-900 dark:text-white leading-tight">{{ summaryData.vendor }}</p>
+                                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">{{ summaryData.address }}</p>
+                                    </div>
                                 </div>
-                            </dl>
+                                
+                                <!-- Invoice Details -->
+                                <div class="space-y-4">
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Invoice #</label>
+                                            <p class="mt-0.5 text-sm font-semibold text-gray-900 dark:text-white">{{ summaryData.number }}</p>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Currency</label>
+                                            <p class="mt-0.5 text-sm font-semibold text-gray-900 dark:text-white">{{ summaryData.currency }}</p>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Date</label>
+                                            <p class="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">{{ summaryData.date }}</p>
+                                        </div>
+                                        <div>
+                                            <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Due Date</label>
+                                            <p class="mt-0.5 text-sm font-medium text-gray-900 dark:text-white">{{ summaryData.dueDate }}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Big Total -->
+                                <div class="flex flex-col items-start lg:items-end justify-center">
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 lg:text-right">Total Amount</label>
+                                    <p class="mt-1 text-3xl font-black text-blue-600 dark:text-blue-400">
+                                        {{ formatCurrency(summaryData.total, summaryData.currency) }}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
-                        <!-- Array fields (e.g. line_items) -->
-                        <div v-for="arrayField in analysisArrayFields" :key="arrayField.key" class="border-t border-gray-100 dark:border-gray-800/60">
-                            <div class="px-6 py-4 bg-gray-50/80 dark:bg-gray-800/40 border-b border-gray-100 dark:border-gray-800/60">
-                                <h3 class="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
-                                    {{ humanizeKey(arrayField.key) }}
-                                </h3>
+                        <!-- Line Items Table -->
+                        <div v-if="lineItems.length > 0" class="border-b border-gray-100 dark:border-gray-800/60">
+                            <div class="px-6 py-3 bg-gray-50/50 dark:bg-gray-800/20 border-b border-gray-100 dark:border-gray-800/60 flex items-center justify-between">
+                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400">Line Items</h3>
+                                <span class="text-[10px] font-medium text-gray-400">{{ lineItems.length }} items detected</span>
                             </div>
                             <div class="overflow-x-auto">
-                                <table
-                                    v-if="arrayField.rows.length > 0 && typeof arrayField.rows[0] === 'object'"
-                                    class="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm"
-                                >
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800 text-sm">
                                     <thead class="bg-white dark:bg-gray-900">
                                         <tr>
-                                            <th
-                                                v-for="col in getRowKeys(arrayField.rows[0])"
-                                                :key="col"
-                                                class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
-                                            >
+                                            <th v-for="col in lineItemKeys" :key="col" class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
                                                 {{ humanizeKey(col) }}
                                             </th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-100 dark:divide-gray-800/60 bg-white dark:bg-gray-900">
-                                        <tr v-for="(row, rowIdx) in arrayField.rows" :key="rowIdx" class="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
-                                            <td
-                                                v-for="col in getRowKeys(arrayField.rows[0])"
-                                                :key="col"
-                                                class="px-6 py-4 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap"
-                                            >
-                                                {{ renderValue(getRowValue(row, col)) }}
+                                        <tr v-for="(item, idx) in lineItems" :key="idx" class="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
+                                            <td v-for="col in lineItemKeys" :key="col" class="px-6 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                                <template v-if="['unit_price', 'discount', 'presents', 'total'].includes(col)">
+                                                    {{ formatCurrency(item[col], summaryData?.currency) }}
+                                                </template>
+                                                <template v-else>
+                                                    {{ renderValue(item[col]) }}
+                                                </template>
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
-                                <!-- Fallback: simple list for primitive arrays -->
-                                <ul v-else class="px-6 py-4 space-y-2 bg-white dark:bg-gray-900">
-                                    <li v-for="(item, idx) in arrayField.rows" :key="idx" class="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                                        <span class="h-1.5 w-1.5 rounded-full bg-gray-300 dark:bg-gray-600"></span>
-                                        {{ renderValue(item) }}
-                                    </li>
-                                </ul>
                             </div>
+                        </div>
+
+                        <!-- Totals & Notes -->
+                        <div class="px-6 py-8 bg-gray-50/30 dark:bg-gray-800/10">
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                                <!-- Notes -->
+                                <div>
+                                    <label class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">Notes & Comments</label>
+                                    <div class="mt-2 p-4 rounded-xl bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 text-sm text-gray-600 dark:text-gray-400 min-h-[100px] whitespace-pre-wrap">
+                                        {{ currentAnalysis.json_data.notes || 'No additional notes provided.' }}
+                                    </div>
+                                </div>
+
+                                <!-- Financial Totals -->
+                                <div class="space-y-3">
+                                    <div 
+                                        v-for="total in financialTotals" 
+                                        :key="total.key"
+                                        class="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800/50 last:border-0"
+                                        :class="{ 'mt-4 pt-4 border-t-2 border-gray-200 dark:border-gray-700': total.highlight }"
+                                    >
+                                        <span :class="[total.highlight ? 'text-sm font-bold text-gray-900 dark:text-white' : 'text-xs font-medium text-gray-500 dark:text-gray-400']">
+                                            {{ humanizeKey(total.key) }}
+                                        </span>
+                                        <span :class="[total.highlight ? 'text-lg font-black text-blue-600 dark:text-blue-400' : 'text-sm font-bold text-gray-900 dark:text-gray-200']">
+                                            {{ formatCurrency(total.value, summaryData?.currency) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Other/Unstructured Fields -->
+                        <div v-if="otherFields.length > 0" class="px-6 py-6 border-t border-gray-100 dark:border-gray-800/40">
+                            <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-4">Additional Metadata</h4>
+                            <dl class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div v-for="field in otherFields" :key="field.key" class="bg-gray-50/50 dark:bg-gray-800/20 p-3 rounded-lg border border-gray-100 dark:border-gray-800/50">
+                                    <dt class="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                        {{ humanizeKey(field.key) }}
+                                    </dt>
+                                    <dd class="mt-1 text-sm font-medium text-gray-900 dark:text-gray-100 break-words">
+                                        {{ renderValue(field.value) }}
+                                    </dd>
+                                </div>
+                            </dl>
                         </div>
                     </div>
 

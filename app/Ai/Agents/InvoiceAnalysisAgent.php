@@ -61,13 +61,18 @@ class InvoiceAnalysisAgent implements Agent, HasStructuredOutput
                 $schema->object(fn ($s) => [
                     'description' => $s->string()->required(),
                     'quantity' => $s->number()->required(),
+                    'discount' => $s->number()->nullable(),
+                    'presents' => $s->number()->nullable(),
                     'unit_price' => $s->number()->required(),
                     'total' => $s->number()->required(),
                 ])
             )->required(),
             'subtotal' => $schema->number()->required(),
-            'tax' => $schema->number()->required(),
+            'discount_total' => $schema->number()->nullable(),
+            'present_total' => $schema->number()->nullable(),
             'total_amount' => $schema->number()->required(),
+            'paid_amount' => $schema->number()->nullable(),
+            'dept_amount' => $schema->number()->nullable(),
             'currency' => $schema->string()->description('3-letter ISO code')->required(),
             'notes' => $schema->string()->required(),
         ];
