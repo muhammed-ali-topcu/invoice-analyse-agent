@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Head, Form } from '@inertiajs/vue3';
 import { index as optionsIndex, edit as optionsEdit, update as optionsUpdate } from '@/actions/App/Http/Controllers/OptionsController';
+import InputError from '@/components/InputError.vue';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import InputError from '@/components/InputError.vue';
 
 interface Option {
     id: number;

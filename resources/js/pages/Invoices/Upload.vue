@@ -45,8 +45,14 @@ const hasFiles = computed(() => selectedFiles.value.length > 0);
 const hasUploaded = computed(() => uploadedInvoices.value.length > 0);
 
 function formatBytes(bytes: number): string {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024) {
+return bytes + ' B';
+}
+
+    if (bytes < 1048576) {
+return (bytes / 1024).toFixed(1) + ' KB';
+}
+
     return (bytes / 1048576).toFixed(1) + ' MB';
 }
 
@@ -55,12 +61,16 @@ function addFiles(files: FileList | File[]) {
     Array.from(files).forEach((file) => {
         if (!allowed.includes(file.type)) {
             uploadError.value = `"${file.name}" is not a supported image type (jpeg, jpg, png).`;
+
             return;
         }
+
         if (file.size > 10 * 1024 * 1024) {
             uploadError.value = `"${file.name}" exceeds the 10 MB size limit.`;
+
             return;
         }
+
         selectedFiles.value.push({
             file,
             previewUrl: URL.createObjectURL(file),
@@ -72,14 +82,17 @@ function addFiles(files: FileList | File[]) {
 
 function onFileInputChange(event: Event) {
     const input = event.target as HTMLInputElement;
+
     if (input.files) {
         addFiles(input.files);
     }
+
     input.value = '';
 }
 
 function onDrop(event: DragEvent) {
     isDragging.value = false;
+
     if (event.dataTransfer?.files) {
         addFiles(event.dataTransfer.files);
     }
@@ -95,7 +108,9 @@ function openFilePicker() {
 }
 
 function submit() {
-    if (!hasFiles.value || isUploading.value) return;
+    if (!hasFiles.value || isUploading.value) {
+return;
+}
 
     const formData = new FormData();
     selectedFiles.value.forEach(({ file }) => {
