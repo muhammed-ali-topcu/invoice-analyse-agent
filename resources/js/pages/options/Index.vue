@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import { index as optionsIndex } from '@/actions/App/Http/Controllers/OptionsController';
+import { Head, Link } from '@inertiajs/vue3';
+import { index as optionsIndex, edit as optionsEdit } from '@/actions/App/Http/Controllers/OptionsController';
 
 defineOptions({
     layout: {
@@ -49,6 +49,9 @@ defineProps<{
                                     >
                                         Value
                                     </th>
+                                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                                        <span class="sr-only">Actions</span>
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
@@ -61,10 +64,18 @@ defineProps<{
                                     <td class="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                                         {{ option.value ?? '—' }}
                                     </td>
+                                    <td class="whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                                        <Link
+                                            :href="optionsEdit.url(option.id)"
+                                            class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                        >
+                                            Edit
+                                        </Link>
+                                    </td>
                                 </tr>
                                 <tr v-if="options.length === 0">
                                     <td
-                                        colspan="2"
+                                        colspan="3"
                                         class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
                                     >
                                         No options found.

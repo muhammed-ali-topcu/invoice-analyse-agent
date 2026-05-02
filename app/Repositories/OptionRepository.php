@@ -9,6 +9,14 @@ use Illuminate\Support\Collection;
 class OptionRepository implements OptionRepositoryInterface
 {
     /**
+     * Get an option by its primary key.
+     */
+    public function find(int $id): ?Option
+    {
+        return Option::find($id);
+    }
+
+    /**
      * Get an option by its key.
      */
     public function findByKey(string $key): ?Option

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, FolderGit2, LayoutGrid, Upload } from 'lucide-vue-next';
+import { BookOpen, FolderGit2, LayoutGrid, Settings, Upload } from 'lucide-vue-next';
 import AppLogo from '@/components/AppLogo.vue';
 import NavFooter from '@/components/NavFooter.vue';
 import NavMain from '@/components/NavMain.vue';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { index as invoicesIndex, create as invoicesUpload } from '@/actions/App/Http/Controllers/InvoiceController';
+import { index as optionsIndex } from '@/actions/App/Http/Controllers/OptionsController';
 import type { NavItem } from '@/types';
 
 const mainNavItems: NavItem[] = [
@@ -33,6 +34,11 @@ const mainNavItems: NavItem[] = [
         title: 'Upload Invoice',
         href: invoicesUpload.url(),
         icon: Upload,
+    },
+    {
+        title: 'Options',
+        href: optionsIndex.url(),
+        icon: Settings,
     },
 ];
 

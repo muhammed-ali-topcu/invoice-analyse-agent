@@ -8,6 +8,11 @@ use Illuminate\Support\Collection;
 interface OptionRepositoryInterface
 {
     /**
+     * Get an option by its primary key.
+     */
+    public function find(int $id): ?Option;
+
+    /**
      * Get an option by its key.
      */
     public function findByKey(string $key): ?Option;

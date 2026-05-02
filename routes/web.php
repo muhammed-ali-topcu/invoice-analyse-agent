@@ -19,6 +19,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('invoices/{invoice}/analyse', [InvoiceController::class, 'analyse'])->name('invoices.analyse');
 
     Route::get('options', [OptionsController::class, 'index'])->name('options.index');
+    Route::get('options/{option}/edit', [OptionsController::class, 'edit'])->name('options.edit');
+    Route::patch('options/{option}', [OptionsController::class, 'update'])->name('options.update');
 });
 
 require __DIR__.'/settings.php';
